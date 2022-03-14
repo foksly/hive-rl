@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+01-getting-started/data/cifar-10-python.tar.gz
+01-getting-started/data/cifar-10-batches-py/batches.meta
+01-getting-started/data/cifar-10-batches-py/data_batch_1
+01-getting-started/data/cifar-10-batches-py/data_batch_2
+01-getting-started/data/cifar-10-batches-py/data_batch_3
+01-getting-started/data/cifar-10-batches-py/data_batch_4
+01-getting-started/data/cifar-10-batches-py/data_batch_5
+01-getting-started/data/cifar-10-batches-py/readme.html
+01-getting-started/data/cifar-10-batches-py/test_batch
