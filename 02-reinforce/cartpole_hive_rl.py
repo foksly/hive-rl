@@ -81,14 +81,13 @@ def compute_loss(logits, actions, rewards, gamma=0.99, entropy_coef=1e-2):
 
 def train_epoch(env, agent, optimizer):
     states, actions, rewards = generate_session(env, agent)
-    states = torch.tensor(states, dtype=torch.float32, device=DEVICE)
+    states = torch.tensor(np.array(states), dtype=torch.float32, device=DEVICE)
 
     optimizer.zero_grad()
     logits = agent(states)
-    print(f'states shape: {states.shape}')
     loss = compute_loss(logits, actions, rewards)
     loss.backward()
-    optimizer.step()
+    optimizer.step(batch_size=states.shape[0])
 
     return np.sum(rewards)
 
@@ -99,9 +98,22 @@ def train(n_epochs, env, agent, optimizer, steps_per_epoch=50):
 
 
 if __name__ == '__main__':
-    env = gym.make("CartPole-v0")
+    env = gym.make("CartPole-v1")
     agent = CartPoleAgent()
     agent.to(DEVICE)
     optimizer = torch.optim.Adam(agent.parameters(), 1e-3)
 
+    dht = hivemind.DHT(start=True)
+    print("To join the training, use initial_peers =", [str(addr) for addr in dht.get_visible_maddrs()])
+
+    optimizer = hivemind.Optimizer(
+        dht=dht,
+        run_id='cartpole_reinforce',
+        target_batch_size=1000,
+        optimizer=optimizer,
+        use_local_updates=True,
+        matchmaking_time=3.0,
+        averaging_timeout=10.0,
+        verbose=True
+    )
     train(30, env, agent, optimizer)
