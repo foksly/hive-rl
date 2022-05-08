@@ -2,8 +2,7 @@ import argparse
 import gym
 import torch
 import hivemind
-from transformers.optimization import get_linear_schedule_with_warmup
-from stable_baselines3 import PPO
+from stable_baselines3 import DQN
 from stable_baselines3.common.env_util import make_atari_env
 from stable_baselines3.common.vec_env import VecFrameStack
 
@@ -11,12 +10,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--peer-id', type=int, default=1)
     parser.add_argument('--batch-size', type=int, default=64)
-    parser.add_argument('--n-envs', type=int, default=2)
-    parser.add_argument('--n-rollout-steps', type=int, default=512)
+    parser.add_argument('--learning-starts', type=int, default=100000)
     parser.add_argument('--lr', type=float, default=3e-4)
-    parser.add_argument('--warmup-steps', type=int, default=10)
     parser.add_argument('--target-batch-size', type=int, default=10000)    
-    parser.add_argument('--no-use-local-updates', dest='use_local_updates', action='store_false')
+    parser.add_argument('--use-local-updates', action='store_true')
     parser.add_argument('--experiment-prefix')
     parser.add_argument('--logdir', default='/home/foksly/Documents/hive-rl-v2/logs')
     parser.add_argument('--disable-tb', action='store_true')
@@ -41,7 +38,7 @@ def configure_dht_opts(args):
 
 def configure_hivemind_opts(args):
     hivemind_opts = {
-        'run_id': 'ppo_hivemind',
+        'run_id': 'sac_hivemind',
         'batch_size_per_step': args.batch_size,
         'target_batch_size': args.target_batch_size,
         'offload_optimizer': False,
@@ -67,8 +64,7 @@ def generate_experiment_name(args):
         'peer_id': args.peer_id,
         'bs': args.batch_size,
         'target_bs': args.target_batch_size,
-        'n_envs': args.n_envs,
-        'ro_steps': args.n_rollout_steps,
+        'learning_starts': args.learning_starts,
     }
 
     exp_name = [f'{key}-{value}' for key, value in exp_name_dict.items()]
@@ -93,28 +89,31 @@ if __name__ == "__main__":
     dht_opts = configure_dht_opts(args)
     dht = hivemind.DHT(**dht_opts)
 
-    env = make_atari_env('BreakoutDeterministic-v4', n_envs=args.n_envs)
+    env = make_atari_env('BreakoutNoFrameskip-v4', n_envs=1)
     env = VecFrameStack(env, n_stack=4)
 
     model_init_tb_opts, model_learn_tb_opts = configure_tb_opts(args)
-    model = PPO(
+    model = DQN(
         'CnnPolicy', env,
         verbose=1, batch_size=args.batch_size,
-        n_steps=args.n_rollout_steps, learning_rate=args.lr,
+        learning_starts=args.learning_starts, learning_rate=args.lr,
+        buffer_size=100000, target_update_interval=1000,
+        train_freq=1, gradient_steps=1,
+        #  exploration_initial_eps=0.55,
+        exploration_fraction=0.01,
+        exploration_final_eps=0.01,
+        optimize_memory_usage=True,
         **model_init_tb_opts
     )
 
-    scheduler = lambda opt: get_linear_schedule_with_warmup(
-        opt, num_warmup_steps=args.warmup_steps, num_training_steps=1000,
-    )
     model.policy.optimizer_class = hivemind.Optimizer
     model.policy.optimizer = hivemind.Optimizer(
         dht=dht,
         optimizer=model.policy.optimizer,
-        scheduler=scheduler,
-        # grad_averager_factory=None,
         **configure_hivemind_opts(args),
     )
+
     if args.peer_id > 1:
         model.policy.optimizer.load_state_from_peers()
+
     model.learn(total_timesteps=int(5e6), **model_learn_tb_opts)

@@ -13,11 +13,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-python3 ppo_hivemind.py \
+python3 dqn.py \
   --peer-id ${PEER_ID} \
-  --batch-size 512 \
-  --target-batch-size 100000 \
-  --n-envs 8 \
-  --n-rollout-steps 128 \
-  --lr 0.001 \
-  --experiment-prefix 8_peers\
+  --batch-size 256 \
+  --target-batch-size 10000 \
+  --lr 0.0003 \
