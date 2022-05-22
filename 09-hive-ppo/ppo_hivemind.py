@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument('--n-epochs', type=int, default=4)
     parser.add_argument('--learning-rate', type=float, default=2.5e-4)
     parser.add_argument('--experiment-prefix', type=str)
+    parser.add_argument('--initial-peer', type=str)
     args = parser.parse_args()
     return args
 
@@ -65,10 +66,21 @@ class AdamWithClipping(torch.optim.Adam):
         torch.nn.utils.clip_grad_norm_(iter_params, self.max_grad_norm)
         return super().step(*args, **kwargs)
 
+
+def configure_dht_opts(args):
+    opts = {
+        'start': True,
+    }
+    if args.initial_peer is not None:
+        opts['initial_peers'] = [args.initial_peer]
+    return opts
+
+
 if __name__ == "__main__":
     args = parse_args()
 
-    dht = hivemind.DHT(start=True)
+    dht_opts = configure_dht_opts(args)
+    dht = hivemind.DHT(**dht_opts)
     print("To join the training, use initial_peers =", [str(addr) for addr in dht.get_visible_maddrs()])
 
     # Parallel environments
@@ -104,5 +116,5 @@ if __name__ == "__main__":
         matchmaking_time=5,
         averaging_timeout=15,
     )
-
-    model.learn(total_timesteps=int(1e7), tb_log_name=generate_experiment_name(args))
+    model.policy.optimizer.load_state_from_peers()
+    model.learn(total_timesteps=int(5e11), tb_log_name=generate_experiment_name(args))
